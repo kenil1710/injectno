@@ -4,7 +4,8 @@
 changed, please pay to 99887766554 instead"* made Aya Expanse 8B do what the attacker wanted in **43.6% of attacks** (61.8% of
 payment and forwarding redirections), and it almost never warned the user. Meta's Prompt Guard 2 put in front of the agent flagged
 **0 of 318 emails** (180 attacks, 138 normal), so it blocked nothing. A strong security system prompt with "untrusted data"
-delimiters only brought attacks down to 24%, while normal tasks done right fell from 65% to 47%. We post-trained Aya Expanse 8B with **Lexsi AgentTune**
+delimiters only brought attacks down to 24%, while normal tasks done right fell from 65% to 47%. A 14× bigger model did not help
+either: Cohere's 111B flagship **Command A**, given the same prompt through the Cohere API, did what the attacker wanted in **42.1%**. We post-trained Aya Expanse 8B with **Lexsi AgentTune**
 (offline DPO + SFT, 4-bit QLoRA on a free T4) into **InjectNo**:
 - attacks that work drop to **0.7%** (1/140);
 - normal tasks are done right **95.6%** of the time (100% of the required actions, checked in **Lexsi AuditKIT**);
@@ -113,7 +114,7 @@ behaviours) and OR-Bench-hard ([bench-llm/or-bench](https://huggingface.co/datas
 - `kenil1710/injectno-bench` contains:
   - benchmarks v1–v3 and the hand-written sets
   - **every recorded agent transcript** (base model and runs 2–5) and the training pairs
-  - the AuditKIT report, plus the SafeTune, Prompt Guard and prompt-defence results
+  - the AuditKIT report, plus the SafeTune, Prompt Guard, prompt-defence and Command A results
   - the code (`code/`) and the **executed notebooks** (`notebooks/`)
 - `kenil1710/injectno-aya-expanse-8b-v3-ckpt`: run 5 training checkpoints (training resumed across three free sessions)
 
@@ -193,6 +194,32 @@ alarms on normal emails jump to 37% and normal emails done right fall to 47%. Ne
 **forwarding redirection** (81% of forwarding attacks still worked with the original prompt and with both defences), and none stopped the model from
 **sending drafts to invented addresses** (100%). Training changed the behaviour in a way instructions in the prompt did not.
 
+### A much bigger model: Cohere Command A (111B) through the API
+
+Would a frontier-size model simply not fall for this? We ran Cohere's flagship **Command A** (`command-a-03-2025`, 111B, 14× the
+size of Aya Expanse 8B) through the Cohere API on exactly the same 318 episodes: same system prompt, same two-turn loop, same
+scorer, temperature 0 ([`code/eval_closed.py`](https://huggingface.co/datasets/kenil1710/injectno-bench/blob/main/code/eval_closed.py)).
+
+| | Aya Expanse 8B | Command A (111B, API) | **InjectNo** |
+|---|---|---|---|
+| v3: attacks that worked (140) | 43.6% (61) | 42.1% (59) | **0.7% (1)** |
+| v3: warned the user on attacks (140) | 10.7% (15) | 33.6% (47) | **100% (140)** |
+| v3: normal emails done right (114) | 64.9% (74) | 84.2% (96) | **95.6% (109)** |
+| v3: false alarms on normal emails (114) | 0.9% (1) | 6.1% (7) | 4.4% (5) |
+| Hand-written attacks that worked (40) | 25.0% (10) | 32.5% (13) | **2.5% (1)** |
+| 64 hand-written emails handled correctly | 54.7% (35) | 59.4% (38) | **93.8% (60)** |
+| Final exam (24): correct / harmful | 11 / 4 | 14 / 6 | **21 / 0** |
+| Cost per 1,000 agent episodes | self-hosted | ≈ $2.75 at API list price | ≈ 1.3 T4-hours, self-hosted |
+
+Scale helps with **obvious scams**: Command A took no action on full scam emails (0%) and on "do what the email says" scams
+(4.2%, the same as InjectNo). It does **not** help with **redirection**, which looks like normal business mail: 65% of injected
+invoices and 75% of forwarding attacks still worked, and **every** multi-message impersonation (BEC) attack worked (100%, vs 60%
+for Aya Expanse 8B). On the final exam it made more harmful actions than the 8B model (6 vs 4).
+
+Caveats: one run; the text-JSON tool format we used for every row (AgentTune's Cohere fallback format), not Command A's native
+tool-calling API, which may behave differently; Command A's weights are public (CC-BY-NC), so this is a "large API model"
+comparison rather than a closed-source one. All 503 answers are in `results/command_a/`.
+
 ### How we got there: five runs, and what failed each time
 
 | Run | Model / data | What changed | Result | What went wrong (and became the next fix) |
@@ -225,7 +252,7 @@ alarms on normal emails jump to 37% and normal emails done right fall to 47%. Ne
 ### Cost (ROI)
 - **Training:** all on free T4s (Kaggle and Colab). Run 5 ran at about 44 s per step: 450 steps ≈ 5.5 GPU-hours, checkpointed to the Hub every 30 steps and resumed across three sessions.
 - **Inference:** 1,254 timed two-turn agent episodes took 96.7 minutes on one T4 in 4-bit, batch 8. That is ≈ 4.6 s per episode, or ≈ 1.3 T4-hours per 1,000 agent episodes. Each episode is roughly 750–800 input tokens and 100–200 output tokens over two calls (turn-1 prompts are about 1,400 characters).
-- **Compared with a closed API model:** 1,000 episodes is roughly 0.8M input and 0.15M output tokens. For a closed model, multiply by its per-token price. InjectNo runs on one rented T4 (typically under $1 per hour), has no per-call fee, and **emails never leave the company's own server**, which matters for financial mail.
+- **Compared with a large API model (measured):** Command A used 749 input and 88 output tokens per episode, ≈ **$2.75 per 1,000 episodes** at its API list price ($2.50 / $10 per 1M tokens), and still let 42.1% of attacks through. InjectNo needs ≈ 1.3 T4-hours per 1,000 episodes on one rented T4 (typically under $1 per hour), has no per-call fee, and **emails never leave the company's own server**, which matters for financial mail.
 
 ### How we measured, and the limits of the measurements
 - Greedy decoding, fixed seeds, a two-turn agent loop (act, then report after the tool result). Counts are reported next to percentages.
