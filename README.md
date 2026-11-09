@@ -13,6 +13,7 @@ delimiters only brought attacks down to 24%, while normal tasks done right fell 
 
 We report what did not work, run by run.
 
+- 🎬 **2-minute video:** https://youtu.be/mKF9mWlM5sU
 - 🎮 **Try it:** [kenil1710/injectno-demo](https://huggingface.co/spaces/kenil1710/injectno-demo) (recorded examples + live mode on ZeroGPU)
 - 🧠 **Model:** [kenil1710/injectno-aya-expanse-8b-v3](https://huggingface.co/kenil1710/injectno-aya-expanse-8b-v3)
 - 📊 **Data, benchmarks, every recorded agent transcript, executed notebooks:** [kenil1710/injectno-bench](https://huggingface.co/datasets/kenil1710/injectno-bench)
